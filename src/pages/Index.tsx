@@ -21,7 +21,17 @@ const Index = () => {
   const [ignoreHeaderFooter, setIgnoreHeaderFooter] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
-  const [filter, setFilter] = useState<"all" | "changed" | "missing" | "extra" | "match">("all");
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
+
+  const handleToggleIgnore = useCallback((index: number) => {
+    setIgnoredIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
 
   const clearCredentials = useCallback(() => {
     setAuth({ type: "none", username: "", password: "" });
