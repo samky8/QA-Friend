@@ -73,3 +73,46 @@ export function exportToPdf(
 
   pdf.save(`qa-report-${Date.now()}.pdf`);
 }
+
+export function exportToCsv(
+  result: ComparisonResult,
+  sourceFile: string,
+  targetUrl: string,
+  includedStatuses: string[] = ["changed", "missing", "hyperlinks"],
+) {
+  const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+
+  const rows: string[][] = [
+    ["Status", "Section", "Source Text", "Source Href", "Target Text", "Target Href"],
+  ];
+
+  for (const section of result.sections) {
+    if (!includedStatuses.includes(section.status)) continue;
+    rows.push([
+      section.status,
+      section.sectionLabel ?? "",
+      section.sourceText ?? "",
+      section.sourceHref ?? "",
+      section.targetText ?? "",
+      section.targetHref ?? "",
+    ]);
+  }
+
+  const csv = [
+    `# QA Content Verification Report`,
+    `# Source: ${sourceFile}`,
+    `# Target: ${targetUrl}`,
+    `# Date: ${new Date().toLocaleString()}`,
+    `# Summary: ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.hyperlinks} link issues`,
+    "",
+    ...rows.map((r) => r.map(escape).join(",")),
+  ].join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qa-report-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

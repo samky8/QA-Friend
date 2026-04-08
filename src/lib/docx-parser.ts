@@ -13,6 +13,14 @@ export interface ParsedDocument {
   html: string;
 }
 
+function cleanHref(href: string | null): string | undefined {
+  if (!href) return undefined;
+  // Word HYPERLINK field \l switch: 'url" \l "anchor"' → 'url#anchor'
+  const wlMatch = href.match(/^(.+?)"\s*\\l\s*"([^"]+)"\s*$/);
+  if (wlMatch) return `${wlMatch[1]}#${wlMatch[2]}`;
+  return href;
+}
+
 function htmlToSections(html: string): ParsedSection[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
@@ -49,7 +57,7 @@ function htmlToSections(html: string): ParsedSection[] {
       sections.push({
         type: "link",
         text: node.textContent?.trim() || "",
-        href: node.getAttribute("href") || undefined,
+        href: cleanHref(node.getAttribute("href")),
       });
     } else {
       for (const child of Array.from(node.children)) {

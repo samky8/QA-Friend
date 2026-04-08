@@ -9,13 +9,15 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseDocx } from "@/lib/docx-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
 import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine2";
-import { exportToPdf } from "@/lib/export-report";
+import { exportToPdf, exportToCsv } from "@/lib/export-report";
 import { Loader2, FileDown, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,6 +34,7 @@ const Index = () => {
   const [filter, setFilter] = useState<FilterType>("all");
   const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
   const [resolvedIndices, setResolvedIndices] = useState<Set<number>>(new Set());
+  const [exportFormat, setExportFormat] = useState<"csv" | "pdf">("csv");
 
   const handleToggleIgnore = useCallback((index: number) => {
     setIgnoredIndices((prev) => {
@@ -136,10 +139,15 @@ const Index = () => {
     );
   };
 
-  const handleExportPdf = () => {
+  const handleExport = () => {
     if (!result) return;
-    exportToPdf(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
-    toast({ title: "Report exported", description: "PDF report has been downloaded." });
+    if (exportFormat === "pdf") {
+      exportToPdf(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
+      toast({ title: "Report exported", description: "PDF report has been downloaded." });
+    } else {
+      exportToCsv(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
+      toast({ title: "Report exported", description: "CSV report has been downloaded." });
+    }
   };
 
   const canCompare = file && (useHtmlPaste ? pastedHtml.trim() : url);
@@ -177,11 +185,11 @@ const Index = () => {
             <div className="flex">
               <Button
                 variant="outline"
-                onClick={handleExportPdf}
+                onClick={handleExport}
                 className="rounded-r-none border-r-0"
               >
                 <FileDown className="mr-2 h-4 w-4" />
-                Export PDF
+                Export
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -190,6 +198,12 @@ const Index = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Format</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={exportFormat} onValueChange={(v) => setExportFormat(v as "csv" | "pdf")}>
+                    <DropdownMenuRadioItem value="csv" onSelect={(e) => e.preventDefault()}>CSV</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="pdf" onSelect={(e) => e.preventDefault()}>PDF</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Include in report</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {exportStatusOptions.map((opt) => (
@@ -197,6 +211,7 @@ const Index = () => {
                       key={opt.key}
                       checked={exportStatuses.includes(opt.key)}
                       onCheckedChange={(checked) => toggleExportStatus(opt.key, checked)}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       {opt.label}
                     </DropdownMenuCheckboxItem>

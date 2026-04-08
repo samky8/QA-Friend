@@ -1,7 +1,6 @@
+import { useState } from "react";
 import { CheckCircle2, XCircle, AlertTriangle, ArrowUpDown, EyeOff, RotateCcw, Globe2Icon } from "lucide-react";
-import type { ComparisonResult, SectionComparison } from "@/lib/diff-engine2";
-import { comment } from "postcss";
-import { Global } from "recharts";
+import type { ComparisonResult, SectionComparison, DiffPart } from "@/lib/diff-engine2";
 
 export type FilterType = "all" | "changed" | "missing" | "moved" | "hyperlinks" | "ignored" | "resolved";
 
@@ -30,6 +29,8 @@ const SectionRow = ({
   onToggleIgnore,
   isResolved,
   onToggleResolve,
+  ignoreWhitespace,
+  ignoreCase,
 }: {
   section: SectionComparison;
   globalIndex: number;
@@ -37,9 +38,15 @@ const SectionRow = ({
   onToggleIgnore: (i: number) => void;
   isResolved: boolean;
   onToggleResolve: (i: number) => void;
+  ignoreWhitespace: boolean;
+  ignoreCase: boolean;
 }) => {
   const config = statusConfig[section.status];
   const Icon = config.icon;
+
+  const shouldHighlight = (part: DiffPart) =>
+    !(part.changeType === "whitespace" && ignoreWhitespace) &&
+    !(part.changeType === "case" && ignoreCase);
 
   return (
     <div className="border-b border-border last:border-b-0">
@@ -98,7 +105,7 @@ const SectionRow = ({
                       part.added ? null : (
                         <span
                           key={i}
-                          className={part.removed ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
+                          className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
                         >
                           {part.value}
                         </span>
@@ -117,7 +124,7 @@ const SectionRow = ({
                 part.added ? null : (
                   <span
                     key={i}
-                    className={part.removed ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
+                    className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>
@@ -141,7 +148,7 @@ const SectionRow = ({
                       part.removed ? null : (
                         <span
                           key={i}
-                          className={part.added ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
+                          className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
                         >
                           {part.value}
                         </span>
@@ -160,7 +167,7 @@ const SectionRow = ({
                 part.removed ? null : (
                   <span
                     key={i}
-                    className={part.added ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
+                    className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>
@@ -174,27 +181,40 @@ const SectionRow = ({
   );
 };
 
-const isMatchingHyperlink = (section: SectionComparison) =>
-  section.status === "hyperlinks" && section.sourceText === section.targetText;
-
 const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleIgnore, resolvedIndices, onToggleResolve }: Props) => {
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
+  const [ignoreCase, setIgnoreCase] = useState(false);
+
+  const isEffectivelyActive = (section: SectionComparison): boolean => {
+    if (section.status === "match" || section.status === "moved") return false;
+    if (section.status !== "changed") return true;
+    return (
+      section.hasContentChanges ||
+      (!ignoreWhitespace && section.hasWhitespaceChanges) ||
+      (!ignoreCase && section.hasCaseChanges)
+    );
+  };
+
   const { summary } = result;
   const ignoredCount = ignoredIndices.size;
   const resolvedCount = resolvedIndices.size;
   const allCount = result.sections.filter(
-  (section, index) =>
-    !ignoredIndices.has(index) &&
-    !resolvedIndices.has(index) &&
-    !["match", "moved"].includes(section.status) &&
-    !isMatchingHyperlink(section)
-).length;
+    (section, index) =>
+      !ignoredIndices.has(index) &&
+      !resolvedIndices.has(index) &&
+      isEffectivelyActive(section)
+  ).length;
 
   const visibleHyperlinkCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section)
+    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks"
   ).length;
 
   const visibleChangedCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "changed"
+    (section, index) =>
+      !ignoredIndices.has(index) &&
+      !resolvedIndices.has(index) &&
+      section.status === "changed" &&
+      isEffectivelyActive(section)
   ).length;
 
   const visibleMissingCount = result.sections.filter(
@@ -215,22 +235,30 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
             .map((s, i) => ({ section: s, index: i }))
             .filter(({ index }) => resolvedIndices.has(index))
       : filter === "all"
-  ? result.sections
-      .map((s, i) => ({ section: s, index: i }))
-      .filter(
-        ({ section, index }) =>
-          !ignoredIndices.has(index) &&
-          !resolvedIndices.has(index) &&
-          !["match", "moved"].includes(section.status) &&
-          !isMatchingHyperlink(section)
-      )
-        : filter === "hyperlinks"
+        ? result.sections
+            .map((s, i) => ({ section: s, index: i }))
+            .filter(
+              ({ section, index }) =>
+                !ignoredIndices.has(index) &&
+                !resolvedIndices.has(index) &&
+                isEffectivelyActive(section)
+            )
+        : filter === "changed"
           ? result.sections
               .map((s, i) => ({ section: s, index: i }))
-              .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section))
-          : result.sections
-              .map((s, i) => ({ section: s, index: i }))
-              .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === filter);
+              .filter(({ section, index }) =>
+                !ignoredIndices.has(index) &&
+                !resolvedIndices.has(index) &&
+                section.status === "changed" &&
+                isEffectivelyActive(section)
+              )
+          : filter === "hyperlinks"
+            ? result.sections
+                .map((s, i) => ({ section: s, index: i }))
+                .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks")
+            : result.sections
+                .map((s, i) => ({ section: s, index: i }))
+                .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === filter);
 
   const filters: { key: FilterType; label: string; count: number }[] = [
     { key: "all", label: "All", count: allCount },
@@ -271,6 +299,26 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
       </div>
 
       {/* Filter tabs */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+        <label className="flex cursor-pointer select-none items-center gap-2">
+          <input
+            type="checkbox"
+            checked={ignoreWhitespace}
+            onChange={(e) => setIgnoreWhitespace(e.target.checked)}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          Ignore whitespace changes
+        </label>
+        <label className="flex cursor-pointer select-none items-center gap-2">
+          <input
+            type="checkbox"
+            checked={ignoreCase}
+            onChange={(e) => setIgnoreCase(e.target.checked)}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          Ignore case changes
+        </label>
+      </div>
       <div className="mb-4 flex gap-1 rounded-lg border border-border bg-card p-1 flex-wrap">
         {filters.map((f) => (
           <button
@@ -301,6 +349,8 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
               onToggleIgnore={onToggleIgnore}
               isResolved={resolvedIndices.has(index)}
               onToggleResolve={onToggleResolve}
+              ignoreWhitespace={ignoreWhitespace}
+              ignoreCase={ignoreCase}
             />
           ))
         )}
