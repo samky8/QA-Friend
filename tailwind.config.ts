@@ -39,6 +39,14 @@ export default {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
         },
+        diff: {
+          added: "hsl(var(--diff-added))",
+          "added-bg": "hsl(var(--diff-added-bg))",
+          removed: "hsl(var(--diff-removed))",
+          "removed-bg": "hsl(var(--diff-removed-bg))",
+          changed: "hsl(var(--diff-changed))",
+          "changed-bg": "hsl(var(--diff-changed-bg))",
+        },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
