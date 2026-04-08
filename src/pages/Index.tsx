@@ -81,6 +81,7 @@ const Index = () => {
       const comparison = compareDocuments(docResult.sections, webSections);
       setResult(comparison);
       setFilter("all");
+      setIgnoredIndices(new Set());
 
       toast({
         title: "Comparison complete",
