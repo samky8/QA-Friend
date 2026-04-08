@@ -13,7 +13,9 @@ export interface SectionComparison {
   sourceText: string;
   targetText: string;
   diff: DiffPart[];
-  status: "match" | "changed" | "missing" | "extra" | "moved" | "hyperlinks";
+  status: "match" | "changed" | "missing" | "moved" | "hyperlinks";
+  sourceHref?: string;
+  targetHref?: string;
 }
 
 export interface ComparisonResult {
@@ -22,7 +24,6 @@ export interface ComparisonResult {
     total: number;
     changes: number;
     missing: number;
-    extra: number;
     moved: number;
     hyperlinks: number;
   };
@@ -68,6 +69,19 @@ function sentenceMatchScore(source: string, target: string): number {
   );
 
   return matched.length / srcSentences.length;
+}
+
+function wordSimilarity(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean));
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean));
+  if (wordsA.size === 0 && wordsB.size === 0) return 1;
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersection = 0;
+  for (const w of wordsA) {
+    if (wordsB.has(w)) intersection++;
+  }
+  const union = wordsA.size + wordsB.size - intersection;
+  return intersection / union;
 }
 
 export function compareDocuments(
@@ -157,6 +171,8 @@ export function compareDocuments(
             removed: p.removed,
           })),
           status: "hyperlinks",
+          sourceHref: src.href,
+          targetHref: targetSections[matchedIdx].href,
         });
         continue;
       }
@@ -168,6 +184,7 @@ export function compareDocuments(
         targetText: "",
         diff: [{ value: srcText, removed: true }],
         status: "hyperlinks",
+        sourceHref: src.href,
       });
       continue;
     }
@@ -241,6 +258,10 @@ export function compareDocuments(
         score += 2;
       }
 
+      if (wordSimilarity(srcText, tgt) >= 0.7) {
+        score += 6;
+      }
+
       if (score > changedScore) {
         changedScore = score;
         changedIdx = ti;
@@ -289,28 +310,23 @@ export function compareDocuments(
 
       comparisons.push({
         sectionType: targetSections[i].type,
-        sectionLabel: `Extra: ${getSectionLabel(
-          targetSections[i],
-          i
-        )}`,
+        sectionLabel: getSectionLabel(targetSections[i], i),
         sourceText: "",
         targetText,
         diff: [{ value: targetText, added: true }],
-        status: targetSections[i].type === "link" ? "hyperlinks" : "extra",
+        status: targetSections[i].type === "link" ? "hyperlinks" : "missing",
+        targetHref: targetSections[i].type === "link" ? targetSections[i].href : undefined,
       });
     }
   }
 
   const summary = {
-    total: comparisons.filter((c) => c.status !== "extra").length,
+    total: comparisons.length,
     changes: comparisons.filter(
       (c) => c.status === "changed"
     ).length,
     missing: comparisons.filter(
       (c) => c.status === "missing"
-    ).length,
-    extra: comparisons.filter(
-      (c) => c.status === "extra"
     ).length,
     moved: comparisons.filter(
       (c) => c.status === "moved"

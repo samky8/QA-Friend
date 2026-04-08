@@ -1,7 +1,12 @@
 import jsPDF from "jspdf";
 import type { ComparisonResult } from "./diff-engine2";
 
-export function exportToPdf(result: ComparisonResult, sourceFile: string, targetUrl: string) {
+export function exportToPdf(
+  result: ComparisonResult,
+  sourceFile: string,
+  targetUrl: string,
+  includedStatuses: string[] = ["changed", "missing", "hyperlinks"],
+) {
   const pdf = new jsPDF();
   const margin = 15;
   let y = margin;
@@ -24,13 +29,13 @@ export function exportToPdf(result: ComparisonResult, sourceFile: string, target
   // Summary
   pdf.setFontSize(12);
   pdf.setTextColor(0);
-  pdf.text(`Summary: ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.extra} extra`, margin, y);
+  pdf.text(`Summary: ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.hyperlinks} link issues`, margin, y);
   y += 12;
 
   pdf.setFontSize(9);
 
   for (const section of result.sections) {
-    if (section.status === "match") continue; // Skip matches in report
+    if (!includedStatuses.includes(section.status)) continue;
 
     if (y > 270) {
       pdf.addPage();
@@ -43,17 +48,25 @@ export function exportToPdf(result: ComparisonResult, sourceFile: string, target
     y += 6;
 
     pdf.setFontSize(8);
-    if (section.sourceText) {
-      pdf.setTextColor(180, 0, 0);
-      const srcLines = pdf.splitTextToSize(`Source: ${section.sourceText}`, maxWidth);
-      pdf.text(srcLines, margin, y);
-      y += srcLines.length * 4;
+    pdf.setTextColor(180, 0, 0);
+    const srcLines = pdf.splitTextToSize(`Source: ${section.sourceText || "-"}`, maxWidth);
+    pdf.text(srcLines, margin, y);
+    y += srcLines.length * 4;
+    if (section.status === "hyperlinks" && section.sourceHref) {
+      pdf.setTextColor(120, 0, 0);
+      const hrefLines = pdf.splitTextToSize(`Source href: ${section.sourceHref}`, maxWidth);
+      pdf.text(hrefLines, margin, y);
+      y += hrefLines.length * 4;
     }
-    if (section.targetText) {
-      pdf.setTextColor(0, 128, 0);
-      const tgtLines = pdf.splitTextToSize(`Target: ${section.targetText}`, maxWidth);
-      pdf.text(tgtLines, margin, y);
-      y += tgtLines.length * 4;
+    pdf.setTextColor(0, 128, 0);
+    const tgtLines = pdf.splitTextToSize(`Target: ${section.targetText || "-"}`, maxWidth);
+    pdf.text(tgtLines, margin, y);
+    y += tgtLines.length * 4;
+    if (section.status === "hyperlinks" && section.targetHref) {
+      pdf.setTextColor(0, 90, 0);
+      const hrefLines = pdf.splitTextToSize(`Target href: ${section.targetHref}`, maxWidth);
+      pdf.text(hrefLines, margin, y);
+      y += hrefLines.length * 4;
     }
     y += 4;
   }

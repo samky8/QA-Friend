@@ -1,9 +1,9 @@
-import { CheckCircle2, XCircle, AlertTriangle, Plus, ArrowUpDown, EyeOff, RotateCcw, Globe2, Globe2Icon } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, ArrowUpDown, EyeOff, RotateCcw, Globe2Icon } from "lucide-react";
 import type { ComparisonResult, SectionComparison } from "@/lib/diff-engine2";
 import { comment } from "postcss";
 import { Global } from "recharts";
 
-export type FilterType = "all" | "changed" | "missing" | "extra" | "moved" | "hyperlinks" | "ignored";
+export type FilterType = "all" | "changed" | "missing" | "moved" | "hyperlinks" | "ignored" | "resolved";
 
 interface Props {
   result: ComparisonResult;
@@ -11,13 +11,14 @@ interface Props {
   onFilterChange: (f: FilterType) => void;
   ignoredIndices: Set<number>;
   onToggleIgnore: (index: number) => void;
+  resolvedIndices: Set<number>;
+  onToggleResolve: (index: number) => void;
 }
 
 const statusConfig = {
   match: { icon: CheckCircle2, label: "Match", className: "text-diff-added" },
   changed: { icon: AlertTriangle, label: "Changed", className: "text-diff-changed" },
   missing: { icon: XCircle, label: "Missing", className: "text-diff-removed" },
-  extra: { icon: Plus, label: "Extra", className: "text-accent" },
   hyperlinks: { icon: Globe2Icon, label: "Hyperlink", className: "text-hyperlinks" },
   moved: { icon: ArrowUpDown, label: "Moved", className: "text-primary" },
 };
@@ -27,11 +28,15 @@ const SectionRow = ({
   globalIndex,
   isIgnored,
   onToggleIgnore,
+  isResolved,
+  onToggleResolve,
 }: {
   section: SectionComparison;
   globalIndex: number;
   isIgnored: boolean;
   onToggleIgnore: (i: number) => void;
+  isResolved: boolean;
+  onToggleResolve: (i: number) => void;
 }) => {
   const config = statusConfig[section.status];
   const Icon = config.icon;
@@ -57,9 +62,7 @@ const SectionRow = ({
                 ? "bg-diff-changed-bg text-diff-changed"
                 : section.status === "missing"
                   ? "bg-diff-removed-bg text-diff-removed"
-                  : section.status === "hyperlinks"
-                    ? "bg-hyperlinks-bg text-hyperlinks"
-                    : "bg-accent/10 text-accent"
+                  : "bg-hyperlinks-bg text-hyperlinks"
           }`}
         >
           {config.label}
@@ -67,9 +70,16 @@ const SectionRow = ({
         <button
           onClick={() => onToggleIgnore(globalIndex)}
           className="ml-2 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-          title={isIgnored ? "Restore this row" : "Ignore this row"}
+          title={isIgnored ? "Restore (unignore)" : "Ignore this row"}
         >
           {isIgnored ? <RotateCcw className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          onClick={() => onToggleResolve(globalIndex)}
+          className="ml-1 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-diff-added transition-colors"
+          title={isResolved ? "Restore (unresolve)" : "Mark as resolved"}
+        >
+          {isResolved ? <RotateCcw className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
         </button>
       </div>
 
@@ -77,10 +87,29 @@ const SectionRow = ({
         <div className="p-4">
           <p className="mb-1 text-xs font-medium text-muted-foreground">Source (DOCX)</p>
           <div className="text-sm leading-relaxed">
-            {section.status === "extra" ? (
-              <span className="italic text-muted-foreground">— not in source —</span>
-            ) : section.status === "missing" ? (
-              <span className="rounded bg-diff-removed-bg px-0.5">{section.sourceText}</span>
+            {section.status === "missing" ? (
+              section.sourceText
+                ? <span className="rounded bg-diff-removed-bg px-0.5 dark:text-gray-900">{section.sourceText}</span>
+                : <span className="italic text-muted-foreground">— not found in source —</span>
+            ) : section.status === "hyperlinks" ? (
+              <>
+                {section.sourceText
+                  ? section.diff.map((part, i) =>
+                      part.added ? null : (
+                        <span
+                          key={i}
+                          className={part.removed ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
+                        >
+                          {part.value}
+                        </span>
+                      )
+                    )
+                  : <span className="italic text-muted-foreground">— not found in source —</span>
+                }
+                {section.sourceHref && (
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{section.sourceHref}</p>
+                )}
+              </>
             ) : section.status === "moved" ? (
               <span>{section.sourceText}</span>
             ) : (
@@ -88,7 +117,7 @@ const SectionRow = ({
                 part.added ? null : (
                   <span
                     key={i}
-                    className={part.removed ? "rounded bg-diff-changed-bg px-0.5" : ""}
+                    className={part.removed ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>
@@ -102,9 +131,28 @@ const SectionRow = ({
           <p className="mb-1 text-xs font-medium text-muted-foreground">Target (Webpage)</p>
           <div className="text-sm leading-relaxed">
             {section.status === "missing" ? (
-              <span className="italic text-muted-foreground">— not found on page —</span>
-            ) : section.status === "extra" ? (
-              <span className="rounded bg-accent/10 px-0.5">{section.targetText}</span>
+              section.targetText
+                ? <span className="rounded bg-diff-removed-bg px-0.5 dark:text-gray-900">{section.targetText}</span>
+                : <span className="italic text-muted-foreground">— not found on page —</span>
+            ) : section.status === "hyperlinks" ? (
+              <>
+                {section.targetText
+                  ? section.diff.map((part, i) =>
+                      part.removed ? null : (
+                        <span
+                          key={i}
+                          className={part.added ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
+                        >
+                          {part.value}
+                        </span>
+                      )
+                    )
+                  : <span className="italic text-muted-foreground">— not found on page —</span>
+                }
+                {section.targetHref && (
+                  <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{section.targetHref}</p>
+                )}
+              </>
             ) : section.status === "moved" ? (
               <span>{section.targetText}</span>
             ) : (
@@ -112,7 +160,7 @@ const SectionRow = ({
                 part.removed ? null : (
                   <span
                     key={i}
-                    className={part.added ? "rounded bg-diff-changed-bg px-0.5 font-medium" : ""}
+                    className={part.added ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>
@@ -129,30 +177,32 @@ const SectionRow = ({
 const isMatchingHyperlink = (section: SectionComparison) =>
   section.status === "hyperlinks" && section.sourceText === section.targetText;
 
-const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleIgnore }: Props) => {
+const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleIgnore, resolvedIndices, onToggleResolve }: Props) => {
   const { summary } = result;
   const ignoredCount = ignoredIndices.size;
+  const resolvedCount = resolvedIndices.size;
   const allCount = result.sections.filter(
   (section, index) =>
     !ignoredIndices.has(index) &&
-    !["match", "moved", "extra"].includes(section.status) &&
+    !resolvedIndices.has(index) &&
+    !["match", "moved"].includes(section.status) &&
     !isMatchingHyperlink(section)
 ).length;
 
   const visibleHyperlinkCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section)
+    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section)
   ).length;
 
   const visibleChangedCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && section.status === "changed"
+    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "changed"
   ).length;
 
   const visibleMissingCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && section.status === "missing"
+    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "missing"
   ).length;
 
   const visibleMovedCount = result.sections.filter(
-    (section, index) => !ignoredIndices.has(index) && section.status === "moved"
+    (section, index) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "moved"
   ).length;
 
   const filtered =
@@ -160,31 +210,36 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
       ? result.sections
           .map((s, i) => ({ section: s, index: i }))
           .filter(({ index }) => ignoredIndices.has(index))
+      : filter === "resolved"
+        ? result.sections
+            .map((s, i) => ({ section: s, index: i }))
+            .filter(({ index }) => resolvedIndices.has(index))
       : filter === "all"
   ? result.sections
       .map((s, i) => ({ section: s, index: i }))
       .filter(
         ({ section, index }) =>
           !ignoredIndices.has(index) &&
-          !["match", "moved", "extra"].includes(section.status) &&
+          !resolvedIndices.has(index) &&
+          !["match", "moved"].includes(section.status) &&
           !isMatchingHyperlink(section)
       )
         : filter === "hyperlinks"
           ? result.sections
               .map((s, i) => ({ section: s, index: i }))
-              .filter(({ section, index }) => !ignoredIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section))
+              .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section))
           : result.sections
               .map((s, i) => ({ section: s, index: i }))
-              .filter(({ section, index }) => !ignoredIndices.has(index) && section.status === filter);
+              .filter(({ section, index }) => !ignoredIndices.has(index) && !resolvedIndices.has(index) && section.status === filter);
 
   const filters: { key: FilterType; label: string; count: number }[] = [
     { key: "all", label: "All", count: allCount },
     { key: "changed", label: "Changed", count: visibleChangedCount },
     { key: "missing", label: "Missing", count: visibleMissingCount },
     { key: "hyperlinks", label: "Hyperlinks", count: visibleHyperlinkCount },
-    { key: "extra", label: "Extra", count: summary.extra },
     { key: "moved", label: "Moved", count: visibleMovedCount },
     { key: "ignored", label: "Ignored", count: ignoredCount },
+    { key: "resolved", label: "Resolved", count: resolvedCount },
   ];
 
   return (
@@ -244,6 +299,8 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
               globalIndex={index}
               isIgnored={ignoredIndices.has(index)}
               onToggleIgnore={onToggleIgnore}
+              isResolved={resolvedIndices.has(index)}
+              onToggleResolve={onToggleResolve}
             />
           ))
         )}

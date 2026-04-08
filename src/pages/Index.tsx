@@ -4,11 +4,19 @@ import SourceDocumentPanel from "@/components/SourceDocumentPanel";
 import TargetWebpagePanel, { type AuthConfig } from "@/components/TargetWebpagePanel";
 import DiffResults, { type FilterType } from "@/components/DiffResults";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { parseDocx } from "@/lib/docx-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
 import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine2";
 import { exportToPdf } from "@/lib/export-report";
-import { Loader2, FileDown } from "lucide-react";
+import { Loader2, FileDown, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
@@ -23,12 +31,28 @@ const Index = () => {
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
+  const [resolvedIndices, setResolvedIndices] = useState<Set<number>>(new Set());
 
   const handleToggleIgnore = useCallback((index: number) => {
     setIgnoredIndices((prev) => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
-      else next.add(index);
+      else {
+        next.add(index);
+        setResolvedIndices((r) => { const rn = new Set(r); rn.delete(index); return rn; });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleResolve = useCallback((index: number) => {
+    setResolvedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else {
+        next.add(index);
+        setIgnoredIndices((ig) => { const ign = new Set(ig); ign.delete(index); return ign; });
+      }
       return next;
     });
   }, []);
@@ -82,6 +106,7 @@ const Index = () => {
       setResult(comparison);
       setFilter("all");
       setIgnoredIndices(new Set());
+      setResolvedIndices(new Set());
 
       toast({
         title: "Comparison complete",
@@ -96,9 +121,24 @@ const Index = () => {
     }
   };
 
+  const [exportStatuses, setExportStatuses] = useState<string[]>(["changed", "missing", "hyperlinks"]);
+
+  const exportStatusOptions: { key: string; label: string }[] = [
+    { key: "changed", label: "Changed" },
+    { key: "missing", label: "Missing" },
+    { key: "hyperlinks", label: "Hyperlinks" },
+    { key: "moved", label: "Moved" },
+  ];
+
+  const toggleExportStatus = (key: string, checked: boolean) => {
+    setExportStatuses((prev) =>
+      checked ? [...prev, key] : prev.filter((s) => s !== key),
+    );
+  };
+
   const handleExportPdf = () => {
     if (!result) return;
-    exportToPdf(result, file?.name || "document.docx", url || "pasted HTML");
+    exportToPdf(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
     toast({ title: "Report exported", description: "PDF report has been downloaded." });
   };
 
@@ -134,10 +174,36 @@ const Index = () => {
 
         <div className="mt-6 flex justify-end gap-3">
           {result && (
-            <Button variant="outline" onClick={handleExportPdf}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Export PDF
-            </Button>
+            <div className="flex">
+              <Button
+                variant="outline"
+                onClick={handleExportPdf}
+                className="rounded-r-none border-r-0"
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Export PDF
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="rounded-l-none px-2">
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Include in report</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {exportStatusOptions.map((opt) => (
+                    <DropdownMenuCheckboxItem
+                      key={opt.key}
+                      checked={exportStatuses.includes(opt.key)}
+                      onCheckedChange={(checked) => toggleExportStatus(opt.key, checked)}
+                    >
+                      {opt.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
           <Button onClick={handleCompare} disabled={loading || !canCompare}>
             {loading ? (
@@ -151,7 +217,7 @@ const Index = () => {
           </Button>
         </div>
 
-        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} />}
+        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} resolvedIndices={resolvedIndices} onToggleResolve={handleToggleResolve} />}
       </main>
     </div>
   );
