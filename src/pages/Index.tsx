@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import Header from "@/components/Header";
 import SourceDocumentPanel from "@/components/SourceDocumentPanel";
 import TargetWebpagePanel, { type AuthConfig } from "@/components/TargetWebpagePanel";
-import DiffResults from "@/components/DiffResults";
+import DiffResults, { type FilterType } from "@/components/DiffResults";
 import { Button } from "@/components/ui/button";
 import { parseDocx } from "@/lib/docx-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
