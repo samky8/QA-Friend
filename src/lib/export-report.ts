@@ -1,0 +1,62 @@
+import jsPDF from "jspdf";
+import type { ComparisonResult } from "./diff-engine";
+
+export function exportToPdf(result: ComparisonResult, sourceFile: string, targetUrl: string) {
+  const pdf = new jsPDF();
+  const margin = 15;
+  let y = margin;
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const maxWidth = pageWidth - margin * 2;
+
+  pdf.setFontSize(18);
+  pdf.text("QA Content Verification Report", margin, y);
+  y += 10;
+
+  pdf.setFontSize(10);
+  pdf.setTextColor(100);
+  pdf.text(`Source: ${sourceFile}`, margin, y);
+  y += 5;
+  pdf.text(`Target: ${targetUrl}`, margin, y);
+  y += 5;
+  pdf.text(`Date: ${new Date().toLocaleString()}`, margin, y);
+  y += 10;
+
+  // Summary
+  pdf.setFontSize(12);
+  pdf.setTextColor(0);
+  pdf.text(`Summary: ${result.summary.matches} matches, ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.extra} extra`, margin, y);
+  y += 12;
+
+  pdf.setFontSize(9);
+
+  for (const section of result.sections) {
+    if (section.status === "match") continue; // Skip matches in report
+
+    if (y > 270) {
+      pdf.addPage();
+      y = margin;
+    }
+
+    pdf.setTextColor(0);
+    pdf.setFontSize(10);
+    pdf.text(`[${section.status.toUpperCase()}] ${section.sectionLabel}`, margin, y);
+    y += 6;
+
+    pdf.setFontSize(8);
+    if (section.sourceText) {
+      pdf.setTextColor(180, 0, 0);
+      const srcLines = pdf.splitTextToSize(`Source: ${section.sourceText}`, maxWidth);
+      pdf.text(srcLines, margin, y);
+      y += srcLines.length * 4;
+    }
+    if (section.targetText) {
+      pdf.setTextColor(0, 128, 0);
+      const tgtLines = pdf.splitTextToSize(`Target: ${section.targetText}`, maxWidth);
+      pdf.text(tgtLines, margin, y);
+      y += tgtLines.length * 4;
+    }
+    y += 4;
+  }
+
+  pdf.save(`qa-report-${Date.now()}.pdf`);
+}
