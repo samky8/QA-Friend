@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import type { ParsedSection } from "./docx-parser";
 
 interface ScrapeOptions {
@@ -8,29 +7,37 @@ interface ScrapeOptions {
     type: "basic" | "password-gate" | "form-login";
     username?: string;
     password?: string;
-    formSelector?: string;
   };
 }
 
 interface ScrapeResult {
   sections: ParsedSection[];
   rawText: string;
-  screenshotBase64?: string;
 }
+
+const CORS_PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
 
 function htmlToSections(html: string, ignoreHeaderFooter: boolean): ParsedSection[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
-  const sections: ParsedSection[] = [];
 
-  // Remove header/footer if requested
   if (ignoreHeaderFooter) {
-    doc.querySelectorAll("header, footer, nav, [role='banner'], [role='contentinfo'], [role='navigation']").forEach((el) => el.remove());
+    doc.querySelectorAll(
+      "header, footer, nav, [role='banner'], [role='contentinfo'], [role='navigation']"
+    ).forEach((el) => el.remove());
   }
+
+  // Remove non-visible elements
+  doc.querySelectorAll("script, style, noscript, svg, meta, link, template").forEach((el) => el.remove());
+
+  const sections: ParsedSection[] = [];
 
   function walk(node: Element) {
     const tag = node.tagName?.toLowerCase();
-    if (["script", "style", "noscript", "svg", "meta", "link"].includes(tag)) return;
+    if (!tag) return;
 
     if (tag === "h1" || tag === "h2" || tag === "h3") {
       const text = node.textContent?.trim();
@@ -58,41 +65,48 @@ function htmlToSections(html: string, ignoreHeaderFooter: boolean): ParsedSectio
   return sections;
 }
 
-export async function scrapeWebpage(options: ScrapeOptions): Promise<ScrapeResult> {
-  const { data, error } = await supabase.functions.invoke("scrape-webpage", {
-    body: {
-      url: options.url,
-      ignoreHeaderFooter: options.ignoreHeaderFooter,
-      auth: options.auth,
-    },
-  });
-
-  if (error) throw new Error(error.message || "Failed to scrape webpage");
-  if (!data?.success) throw new Error(data?.error || "Scraping failed");
-
-  const html = data.data?.html || data.html || "";
-  const markdown = data.data?.markdown || data.markdown || "";
-  const screenshot = data.data?.screenshot || data.screenshot;
-
-  // Try to parse HTML for structured sections, fallback to markdown
-  let sections: ParsedSection[];
-  if (html) {
-    sections = htmlToSections(html, options.ignoreHeaderFooter);
-  } else {
-    // Fallback: split markdown into sections
-    sections = markdown
-      .split("\n")
-      .filter((l: string) => l.trim())
-      .map((line: string): ParsedSection => {
-        if (line.startsWith("# ")) return { type: "h1", text: line.slice(2).trim() };
-        if (line.startsWith("## ")) return { type: "h2", text: line.slice(3).trim() };
-        if (line.startsWith("### ")) return { type: "h3", text: line.slice(4).trim() };
-        if (line.startsWith("- ") || line.startsWith("* ")) return { type: "list-item", text: line.slice(2).trim() };
-        return { type: "paragraph", text: line.trim() };
-      });
+async function fetchWithProxy(url: string, headers?: HeadersInit): Promise<string> {
+  // Try direct fetch first
+  try {
+    const resp = await fetch(url, { headers, mode: "cors" });
+    if (resp.ok) return await resp.text();
+  } catch {
+    // CORS blocked, try proxies
   }
 
+  // Try CORS proxies
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const resp = await fetch(makeProxy(url));
+      if (resp.ok) return await resp.text();
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(
+    "Could not fetch the webpage. The site may block automated access. " +
+    "Try using the 'Paste HTML' option instead."
+  );
+}
+
+export async function scrapeWebpage(options: ScrapeOptions): Promise<ScrapeResult> {
+  const headers: Record<string, string> = {};
+
+  if (options.auth?.type === "basic" && options.auth.username && options.auth.password) {
+    headers["Authorization"] =
+      "Basic " + btoa(`${options.auth.username}:${options.auth.password}`);
+  }
+
+  const html = await fetchWithProxy(options.url, Object.keys(headers).length ? headers : undefined);
+  const sections = htmlToSections(html, options.ignoreHeaderFooter);
   const rawText = sections.map((s) => s.text).join("\n");
 
-  return { sections, rawText, screenshotBase64: screenshot };
+  return { sections, rawText };
+}
+
+export function parseHtmlString(html: string, ignoreHeaderFooter: boolean): ScrapeResult {
+  const sections = htmlToSections(html, ignoreHeaderFooter);
+  const rawText = sections.map((s) => s.text).join("\n");
+  return { sections, rawText };
 }
