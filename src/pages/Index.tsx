@@ -150,7 +150,7 @@ const Index = () => {
           </Button>
         </div>
 
-        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} />}
+        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} />}
       </main>
     </div>
   );
