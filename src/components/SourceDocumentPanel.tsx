@@ -29,9 +29,9 @@ const SourceDocumentPanel = ({ onFileSelected, selectedFile }: Props) => {
     <div className="rounded-lg border border-border bg-card p-6">
       <div className="mb-3 flex items-center gap-2">
         <FileText className="h-5 w-5 text-primary" />
-        <h2 className="text-lg font-semibold text-foreground">Source Document</h2>
+        <h2 className="text-lg font-semibold text-foreground">Source document</h2>
       </div>
-      <p className="mb-4 text-sm text-muted-foreground">Upload the .docx specification</p>
+      <p className="mb-4 text-sm text-muted-foreground">Upload the Word (.docx) file</p>
 
       {selectedFile ? (
         <div className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-4 py-3">

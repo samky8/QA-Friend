@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import type { ComparisonResult } from "./diff-engine";
+import type { ComparisonResult } from "./diff-engine2";
 
 export function exportToPdf(result: ComparisonResult, sourceFile: string, targetUrl: string) {
   const pdf = new jsPDF();
@@ -24,7 +24,7 @@ export function exportToPdf(result: ComparisonResult, sourceFile: string, target
   // Summary
   pdf.setFontSize(12);
   pdf.setTextColor(0);
-  pdf.text(`Summary: ${result.summary.matches} matches, ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.extra} extra`, margin, y);
+  pdf.text(`Summary: ${result.summary.changes} changes, ${result.summary.missing} missing, ${result.summary.extra} extra`, margin, y);
   y += 12;
 
   pdf.setFontSize(9);

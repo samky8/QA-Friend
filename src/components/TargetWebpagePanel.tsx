@@ -36,7 +36,7 @@ const TargetWebpagePanel = ({
     <div className="rounded-lg border border-border bg-card p-6">
       <div className="mb-3 flex items-center gap-2">
         <Globe className="h-5 w-5 text-accent" />
-        <h2 className="text-lg font-semibold text-foreground">Target Webpage</h2>
+        <h2 className="text-lg font-semibold text-foreground">Target webpage</h2>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">Enter the URL to verify against</p>
 

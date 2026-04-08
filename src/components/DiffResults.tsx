@@ -1,7 +1,9 @@
-import { CheckCircle2, XCircle, AlertTriangle, Plus, ArrowUpDown, EyeOff, RotateCcw } from "lucide-react";
-import type { ComparisonResult, SectionComparison } from "@/lib/diff-engine";
+import { CheckCircle2, XCircle, AlertTriangle, Plus, ArrowUpDown, EyeOff, RotateCcw, Globe2, Globe2Icon } from "lucide-react";
+import type { ComparisonResult, SectionComparison } from "@/lib/diff-engine2";
+import { comment } from "postcss";
+import { Global } from "recharts";
 
-export type FilterType = "all" | "changed" | "missing" | "extra" | "match" | "out-of-order" | "ignored";
+export type FilterType = "all" | "changed" | "missing" | "extra" | "moved" | "hyperlinks" | "ignored";
 
 interface Props {
   result: ComparisonResult;
@@ -16,7 +18,8 @@ const statusConfig = {
   changed: { icon: AlertTriangle, label: "Changed", className: "text-diff-changed" },
   missing: { icon: XCircle, label: "Missing", className: "text-diff-removed" },
   extra: { icon: Plus, label: "Extra", className: "text-accent" },
-  "out-of-order": { icon: ArrowUpDown, label: "Out of Order", className: "text-primary" },
+  hyperlinks: { icon: Globe2Icon, label: "Hyperlink", className: "text-hyperlinks" },
+  moved: { icon: ArrowUpDown, label: "Moved", className: "text-primary" },
 };
 
 const SectionRow = ({
@@ -37,23 +40,26 @@ const SectionRow = ({
     <div className="border-b border-border last:border-b-0">
       <div className="flex items-center gap-2 px-4 py-2 bg-secondary/30">
         <Icon className={`h-4 w-4 ${config.className}`} />
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {section.sectionLabel}
+       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+         {section.sectionLabel}
         </span>
-        {section.status === "out-of-order" && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Out of Order
-          </span>
+        {section.status === "moved" && (
+         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+        Appears elsewhere on the page 
+         </span>
         )}
+        
         <span
           className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${
-            section.status === "match" || section.status === "out-of-order"
+            section.status === "match" || section.status === "moved"
               ? "bg-diff-added-bg text-diff-added"
               : section.status === "changed"
                 ? "bg-diff-changed-bg text-diff-changed"
                 : section.status === "missing"
                   ? "bg-diff-removed-bg text-diff-removed"
-                  : "bg-accent/10 text-accent"
+                  : section.status === "hyperlinks"
+                    ? "bg-hyperlinks-bg text-hyperlinks"
+                    : "bg-accent/10 text-accent"
           }`}
         >
           {config.label}
@@ -75,7 +81,7 @@ const SectionRow = ({
               <span className="italic text-muted-foreground">— not in source —</span>
             ) : section.status === "missing" ? (
               <span className="rounded bg-diff-removed-bg px-0.5">{section.sourceText}</span>
-            ) : section.status === "out-of-order" || section.status === "match" ? (
+            ) : section.status === "moved" ? (
               <span>{section.sourceText}</span>
             ) : (
               section.diff.map((part, i) =>
@@ -99,7 +105,7 @@ const SectionRow = ({
               <span className="italic text-muted-foreground">— not found on page —</span>
             ) : section.status === "extra" ? (
               <span className="rounded bg-accent/10 px-0.5">{section.targetText}</span>
-            ) : section.status === "out-of-order" || section.status === "match" ? (
+            ) : section.status === "moved" ? (
               <span>{section.targetText}</span>
             ) : (
               section.diff.map((part, i) =>
@@ -120,9 +126,34 @@ const SectionRow = ({
   );
 };
 
+const isMatchingHyperlink = (section: SectionComparison) =>
+  section.status === "hyperlinks" && section.sourceText === section.targetText;
+
 const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleIgnore }: Props) => {
   const { summary } = result;
   const ignoredCount = ignoredIndices.size;
+  const allCount = result.sections.filter(
+  (section, index) =>
+    !ignoredIndices.has(index) &&
+    !["match", "moved", "extra"].includes(section.status) &&
+    !isMatchingHyperlink(section)
+).length;
+
+  const visibleHyperlinkCount = result.sections.filter(
+    (section, index) => !ignoredIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section)
+  ).length;
+
+  const visibleChangedCount = result.sections.filter(
+    (section, index) => !ignoredIndices.has(index) && section.status === "changed"
+  ).length;
+
+  const visibleMissingCount = result.sections.filter(
+    (section, index) => !ignoredIndices.has(index) && section.status === "missing"
+  ).length;
+
+  const visibleMovedCount = result.sections.filter(
+    (section, index) => !ignoredIndices.has(index) && section.status === "moved"
+  ).length;
 
   const filtered =
     filter === "ignored"
@@ -130,48 +161,57 @@ const DiffResults = ({ result, filter, onFilterChange, ignoredIndices, onToggleI
           .map((s, i) => ({ section: s, index: i }))
           .filter(({ index }) => ignoredIndices.has(index))
       : filter === "all"
-        ? result.sections
-            .map((s, i) => ({ section: s, index: i }))
-            .filter(({ index }) => !ignoredIndices.has(index))
-        : result.sections
-            .map((s, i) => ({ section: s, index: i }))
-            .filter(({ section, index }) => !ignoredIndices.has(index) && section.status === filter);
+  ? result.sections
+      .map((s, i) => ({ section: s, index: i }))
+      .filter(
+        ({ section, index }) =>
+          !ignoredIndices.has(index) &&
+          !["match", "moved", "extra"].includes(section.status) &&
+          !isMatchingHyperlink(section)
+      )
+        : filter === "hyperlinks"
+          ? result.sections
+              .map((s, i) => ({ section: s, index: i }))
+              .filter(({ section, index }) => !ignoredIndices.has(index) && section.status === "hyperlinks" && !isMatchingHyperlink(section))
+          : result.sections
+              .map((s, i) => ({ section: s, index: i }))
+              .filter(({ section, index }) => !ignoredIndices.has(index) && section.status === filter);
 
   const filters: { key: FilterType; label: string; count: number }[] = [
-    { key: "all", label: "All", count: summary.total - ignoredCount },
-    { key: "changed", label: "Changed", count: summary.changes },
-    { key: "missing", label: "Missing", count: summary.missing },
+    { key: "all", label: "All", count: allCount },
+    { key: "changed", label: "Changed", count: visibleChangedCount },
+    { key: "missing", label: "Missing", count: visibleMissingCount },
+    { key: "hyperlinks", label: "Hyperlinks", count: visibleHyperlinkCount },
     { key: "extra", label: "Extra", count: summary.extra },
-    { key: "out-of-order", label: "Out of Order", count: summary.outOfOrder },
-    { key: "match", label: "Matches", count: summary.matches },
+    { key: "moved", label: "Moved", count: visibleMovedCount },
     { key: "ignored", label: "Ignored", count: ignoredCount },
   ];
 
   return (
     <div className="mt-8">
-      <h2 className="mb-4 text-xl font-semibold text-foreground">Comparison Results</h2>
+      <h2 className="mb-4 text-xl font-semibold text-foreground">Comparison results</h2>
 
       {/* Summary bar */}
       <div className="mb-4 grid grid-cols-5 gap-3">
         <div className="rounded-lg border border-border bg-card p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{summary.total}</p>
+          <p className="text-2xl font-bold text-foreground">{allCount}</p>
           <p className="text-xs text-muted-foreground">Total</p>
         </div>
-        <div className="rounded-lg border border-diff-added/30 bg-diff-added-bg p-3 text-center">
-          <p className="text-2xl font-bold text-diff-added">{summary.matches + summary.outOfOrder}</p>
-          <p className="text-xs text-diff-added">Matches</p>
-        </div>
         <div className="rounded-lg border border-diff-changed/30 bg-diff-changed-bg p-3 text-center">
-          <p className="text-2xl font-bold text-diff-changed">{summary.changes}</p>
-          <p className="text-xs text-diff-changed">Changes</p>
+          <p className="text-2xl font-bold text-diff-changed">{visibleChangedCount}</p>
+          <p className="text-xs text-diff-changed">Changed</p>
         </div>
         <div className="rounded-lg border border-diff-removed/30 bg-diff-removed-bg p-3 text-center">
-          <p className="text-2xl font-bold text-diff-removed">{summary.missing}</p>
+          <p className="text-2xl font-bold text-diff-removed">{visibleMissingCount}</p>
           <p className="text-xs text-diff-removed">Missing</p>
         </div>
+        <div className="rounded-lg border border-diff-hyperlinks/30 bg-hyperlinks-bg p-3 text-center">
+          <p className="text-2xl font-bold text-hyperlinks">{visibleHyperlinkCount}</p>
+          <p className="text-xs text-hyperlinks">Hyperlinks</p>
+        </div>
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-center">
-          <p className="text-2xl font-bold text-primary">{summary.outOfOrder}</p>
-          <p className="text-xs text-primary">Out of Order</p>
+          <p className="text-2xl font-bold text-primary">{visibleMovedCount}</p>
+          <p className="text-xs text-primary">Moved</p>
         </div>
       </div>
 

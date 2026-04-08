@@ -46,7 +46,10 @@ export default {
           "removed-bg": "hsl(var(--diff-removed-bg))",
           changed: "hsl(var(--diff-changed))",
           "changed-bg": "hsl(var(--diff-changed-bg))",
+          hyperlinks: "hsl(var(--diff-hyperlinks))",
         },
+        hyperlinks: "hsl(var(--hyperlinks))",
+        "hyperlinks-bg": "hsl(var(--hyperlinks-bg))",
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",

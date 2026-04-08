@@ -6,7 +6,7 @@ import DiffResults, { type FilterType } from "@/components/DiffResults";
 import { Button } from "@/components/ui/button";
 import { parseDocx } from "@/lib/docx-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
-import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine";
+import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine2";
 import { exportToPdf } from "@/lib/export-report";
 import { Loader2, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -110,9 +110,9 @@ const Index = () => {
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold text-foreground">QA Content Verification</h1>
+          <h1 className="text-3xl font-bold text-foreground">Quality assurance and content verification</h1>
           <p className="mt-2 text-muted-foreground">
-            Compare spec documents directly against live webpages with precision.
+            Compare documents directly against live webpages and view all differences.
           </p>
         </div>
 

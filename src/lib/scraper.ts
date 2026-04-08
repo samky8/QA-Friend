@@ -42,12 +42,25 @@ function htmlToSections(html: string, ignoreHeaderFooter: boolean): ParsedSectio
     if (tag === "h1" || tag === "h2" || tag === "h3") {
       const text = node.textContent?.trim();
       if (text) sections.push({ type: tag, text });
-    } else if (tag === "p") {
+    } else if (tag === "p" || tag === "li") {
+      const children = Array.from(node.children);
       const text = node.textContent?.trim();
-      if (text) sections.push({ type: "paragraph", text });
-    } else if (tag === "li") {
-      const text = node.textContent?.trim();
-      if (text) sections.push({ type: "list-item", text });
+      const soloLink =
+        children.length === 1 &&
+        children[0].tagName?.toLowerCase() === "a" &&
+        children[0].textContent?.trim() === text;
+
+      if (soloLink) {
+        // Entire <p>/<li> is a single link — emit only the link
+        if (text)
+          sections.push({ type: "link", text, href: children[0].getAttribute("href") || undefined });
+      } else {
+        if (text)
+          sections.push({ type: tag === "p" ? "paragraph" : "list-item", text });
+        for (const child of children) {
+          walk(child);
+        }
+      }
     } else if (tag === "a") {
       const text = node.textContent?.trim();
       if (text) sections.push({ type: "link", text, href: node.getAttribute("href") || undefined });
