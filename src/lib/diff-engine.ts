@@ -46,6 +46,13 @@ function getSectionLabel(section: ParsedSection, index: number): string {
   return `${typeLabels[section.type] || "Content"} #${index + 1}`;
 }
 
+function splitIntoSentences(text: string): string[] {
+  return normalizeText(text)
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function compareDocuments(
   sourceSections: ParsedSection[],
   targetSections: ParsedSection[]
