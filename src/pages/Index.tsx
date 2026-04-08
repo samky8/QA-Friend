@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import Header from "@/components/Header";
 import SourceDocumentPanel from "@/components/SourceDocumentPanel";
 import TargetWebpagePanel, { type AuthConfig } from "@/components/TargetWebpagePanel";
-import DiffResults from "@/components/DiffResults";
+import DiffResults, { type FilterType } from "@/components/DiffResults";
 import { Button } from "@/components/ui/button";
 import { parseDocx } from "@/lib/docx-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
@@ -21,7 +21,17 @@ const Index = () => {
   const [ignoreHeaderFooter, setIgnoreHeaderFooter] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
-  const [filter, setFilter] = useState<"all" | "changed" | "missing" | "extra" | "match">("all");
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
+
+  const handleToggleIgnore = useCallback((index: number) => {
+    setIgnoredIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
 
   const clearCredentials = useCallback(() => {
     setAuth({ type: "none", username: "", password: "" });
@@ -71,6 +81,7 @@ const Index = () => {
       const comparison = compareDocuments(docResult.sections, webSections);
       setResult(comparison);
       setFilter("all");
+      setIgnoredIndices(new Set());
 
       toast({
         title: "Comparison complete",
@@ -140,7 +151,7 @@ const Index = () => {
           </Button>
         </div>
 
-        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} />}
+        {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} />}
       </main>
     </div>
   );
