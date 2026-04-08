@@ -13,7 +13,7 @@ export interface SectionComparison {
   sourceText: string;
   targetText: string;
   diff: DiffPart[];
-  status: "match" | "changed" | "missing" | "extra";
+  status: "match" | "changed" | "missing" | "extra" | "out-of-order";
 }
 
 export interface ComparisonResult {
@@ -24,47 +24,12 @@ export interface ComparisonResult {
     changes: number;
     missing: number;
     extra: number;
+    outOfOrder: number;
   };
 }
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
-}
-
-function findBestMatch(
-  sourceSection: ParsedSection,
-  targetSections: ParsedSection[],
-  usedIndices: Set<number>
-): { index: number; score: number } | null {
-  let bestScore = 0;
-  let bestIndex = -1;
-
-  for (let i = 0; i < targetSections.length; i++) {
-    if (usedIndices.has(i)) continue;
-    const target = targetSections[i];
-
-    // Prefer same type
-    let score = 0;
-    if (target.type === sourceSection.type) score += 2;
-
-    const srcNorm = normalizeText(sourceSection.text).toLowerCase();
-    const tgtNorm = normalizeText(target.text).toLowerCase();
-
-    if (srcNorm === tgtNorm) {
-      score += 10;
-    } else if (tgtNorm.includes(srcNorm.substring(0, Math.min(20, srcNorm.length)))) {
-      score += 5;
-    } else if (sourceSection.type === target.type) {
-      score += 1;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = i;
-    }
-  }
-
-  return bestIndex >= 0 && bestScore >= 2 ? { index: bestIndex, score: bestScore } : null;
 }
 
 function getSectionLabel(section: ParsedSection, index: number): string {
@@ -88,41 +53,102 @@ export function compareDocuments(
   const comparisons: SectionComparison[] = [];
   const usedTargetIndices = new Set<number>();
 
-  // Match source sections to target sections
+  // Build a lookup of all normalized target texts for global matching
+  const targetTextsNormalized = targetSections.map((t) => normalizeText(t.text));
+
+  // Phase 1: Try positional match first (same index, same type, same text)
   for (let i = 0; i < sourceSections.length; i++) {
     const src = sourceSections[i];
-    const match = findBestMatch(src, targetSections, usedTargetIndices);
+    const srcNorm = normalizeText(src.text);
 
-    if (match) {
-      usedTargetIndices.add(match.index);
-      const tgt = targetSections[match.index];
-      const srcNorm = normalizeText(src.text);
-      const tgtNorm = normalizeText(tgt.text);
+    if (i < targetSections.length && !usedTargetIndices.has(i)) {
+      const tgtNorm = targetTextsNormalized[i];
+      if (srcNorm === tgtNorm) {
+        usedTargetIndices.add(i);
+        comparisons.push({
+          sectionType: src.type,
+          sectionLabel: getSectionLabel(src, i),
+          sourceText: srcNorm,
+          targetText: tgtNorm,
+          diff: [{ value: srcNorm }],
+          status: "match",
+        });
+        continue;
+      }
+    }
 
+    // Placeholder — will resolve in phase 2
+    comparisons.push({
+      sectionType: src.type,
+      sectionLabel: getSectionLabel(src, i),
+      sourceText: srcNorm,
+      targetText: "",
+      diff: [],
+      status: "missing", // temporary
+    });
+  }
+
+  // Phase 2: For unresolved sources, do global search across ALL target sections
+  for (let ci = 0; ci < comparisons.length; ci++) {
+    const comp = comparisons[ci];
+    if (comp.status !== "missing" || comp.targetText !== "") continue;
+
+    const srcNorm = comp.sourceText;
+
+    // Exact global match anywhere in target
+    let foundIdx = -1;
+    for (let ti = 0; ti < targetTextsNormalized.length; ti++) {
+      if (usedTargetIndices.has(ti)) continue;
+      if (targetTextsNormalized[ti] === srcNorm) {
+        foundIdx = ti;
+        break;
+      }
+    }
+
+    if (foundIdx >= 0) {
+      usedTargetIndices.add(foundIdx);
+      comp.targetText = targetTextsNormalized[foundIdx];
+      comp.diff = [{ value: srcNorm }];
+      // It matched but not at the expected position → out-of-order
+      comp.status = "out-of-order";
+      continue;
+    }
+
+    // Fuzzy positional match: find best partial match among unused targets
+    let bestIdx = -1;
+    let bestScore = 0;
+    for (let ti = 0; ti < targetSections.length; ti++) {
+      if (usedTargetIndices.has(ti)) continue;
+      const tgt = targetSections[ti];
+      const tgtNorm = targetTextsNormalized[ti];
+      let score = 0;
+      if (tgt.type === sourceSections[ci]?.type) score += 2;
+      if (tgtNorm.includes(srcNorm.substring(0, Math.min(20, srcNorm.length)))) {
+        score += 5;
+      } else if (tgt.type === sourceSections[ci]?.type) {
+        score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = ti;
+      }
+    }
+
+    if (bestIdx >= 0 && bestScore >= 3) {
+      usedTargetIndices.add(bestIdx);
+      const tgtNorm = targetTextsNormalized[bestIdx];
       const diff = diffWords(srcNorm, tgtNorm);
-      const isMatch = srcNorm === tgtNorm;
-
-      comparisons.push({
-        sectionType: src.type,
-        sectionLabel: getSectionLabel(src, i),
-        sourceText: srcNorm,
-        targetText: tgtNorm,
-        diff: diff.map((p) => ({ value: p.value, added: p.added, removed: p.removed })),
-        status: isMatch ? "match" : "changed",
-      });
+      comp.targetText = tgtNorm;
+      comp.diff = diff.map((p) => ({ value: p.value, added: p.added, removed: p.removed }));
+      comp.status = "changed";
     } else {
-      comparisons.push({
-        sectionType: src.type,
-        sectionLabel: getSectionLabel(src, i),
-        sourceText: normalizeText(src.text),
-        targetText: "",
-        diff: [{ value: normalizeText(src.text), removed: true }],
-        status: "missing",
-      });
+      // Truly missing
+      comp.diff = [{ value: srcNorm, removed: true }];
+      comp.status = "missing";
     }
   }
 
-  // Mark unmatched target sections as extra
+  // Phase 3: Mark unmatched target sections as extra
   for (let i = 0; i < targetSections.length; i++) {
     if (!usedTargetIndices.has(i)) {
       const tgt = targetSections[i];
@@ -143,6 +169,7 @@ export function compareDocuments(
     changes: comparisons.filter((c) => c.status === "changed").length,
     missing: comparisons.filter((c) => c.status === "missing").length,
     extra: comparisons.filter((c) => c.status === "extra").length,
+    outOfOrder: comparisons.filter((c) => c.status === "out-of-order").length,
   };
 
   return { sections: comparisons, summary };
