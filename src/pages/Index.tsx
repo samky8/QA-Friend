@@ -5,22 +5,23 @@ import TargetWebpagePanel, { type AuthConfig } from "@/components/TargetWebpageP
 import DiffResults from "@/components/DiffResults";
 import { Button } from "@/components/ui/button";
 import { parseDocx } from "@/lib/docx-parser";
-import { scrapeWebpage } from "@/lib/scraper";
+import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
 import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine";
 import { exportToPdf } from "@/lib/export-report";
-import { Loader2, Download, FileDown } from "lucide-react";
+import { Loader2, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
+  const [pastedHtml, setPastedHtml] = useState("");
+  const [useHtmlPaste, setUseHtmlPaste] = useState(false);
   const [auth, setAuth] = useState<AuthConfig>({ type: "none", username: "", password: "" });
   const [ignoreHeaderFooter, setIgnoreHeaderFooter] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [filter, setFilter] = useState<"all" | "changed" | "missing" | "extra" | "match">("all");
-  const [screenshot, setScreenshot] = useState<string | null>(null);
 
   const clearCredentials = useCallback(() => {
     setAuth({ type: "none", username: "", password: "" });
@@ -32,41 +33,42 @@ const Index = () => {
       return;
     }
 
-    // Basic URL validation
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-      if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error();
-    } catch {
-      toast({ title: "Invalid URL", description: "Please enter a valid http(s) URL.", variant: "destructive" });
+    if (!useHtmlPaste) {
+      try {
+        const parsedUrl = new URL(url);
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error();
+      } catch {
+        toast({ title: "Invalid URL", description: "Please enter a valid http(s) URL.", variant: "destructive" });
+        return;
+      }
+    } else if (!pastedHtml.trim()) {
+      toast({ title: "Missing HTML", description: "Please paste the webpage HTML.", variant: "destructive" });
       return;
     }
 
     setLoading(true);
     setResult(null);
-    setScreenshot(null);
 
     try {
-      // Parse DOCX and scrape in parallel
-      const [docResult, webResult] = await Promise.all([
-        parseDocx(file),
-        scrapeWebpage({
-          url: parsedUrl.toString(),
+      const docResult = await parseDocx(file);
+
+      let webSections;
+      if (useHtmlPaste) {
+        webSections = parseHtmlString(pastedHtml, ignoreHeaderFooter).sections;
+      } else {
+        const webResult = await scrapeWebpage({
+          url,
           ignoreHeaderFooter,
           auth: auth.type !== "none"
             ? { type: auth.type, username: auth.username, password: auth.password }
             : undefined,
-        }),
-      ]);
-
-      // Clear credentials immediately after use
-      clearCredentials();
-
-      if (webResult.screenshotBase64) {
-        setScreenshot(webResult.screenshotBase64);
+        });
+        webSections = webResult.sections;
       }
 
-      const comparison = compareDocuments(docResult.sections, webResult.sections);
+      clearCredentials();
+
+      const comparison = compareDocuments(docResult.sections, webSections);
       setResult(comparison);
       setFilter("all");
 
@@ -75,7 +77,6 @@ const Index = () => {
         description: `Found ${comparison.summary.changes} changes, ${comparison.summary.missing} missing sections.`,
       });
     } catch (err: unknown) {
-      // Clear credentials on error too
       clearCredentials();
       const msg = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -86,9 +87,11 @@ const Index = () => {
 
   const handleExportPdf = () => {
     if (!result) return;
-    exportToPdf(result, file?.name || "document.docx", url);
+    exportToPdf(result, file?.name || "document.docx", url || "pasted HTML");
     toast({ title: "Report exported", description: "PDF report has been downloaded." });
   };
+
+  const canCompare = file && (useHtmlPaste ? pastedHtml.trim() : url);
 
   return (
     <div className="min-h-screen bg-background">
@@ -111,6 +114,10 @@ const Index = () => {
             onAuthChange={setAuth}
             ignoreHeaderFooter={ignoreHeaderFooter}
             onIgnoreHeaderFooterChange={setIgnoreHeaderFooter}
+            useHtmlPaste={useHtmlPaste}
+            onUseHtmlPasteChange={setUseHtmlPaste}
+            pastedHtml={pastedHtml}
+            onPastedHtmlChange={setPastedHtml}
           />
         </div>
 
@@ -121,7 +128,7 @@ const Index = () => {
               Export PDF
             </Button>
           )}
-          <Button onClick={handleCompare} disabled={loading || !file || !url}>
+          <Button onClick={handleCompare} disabled={loading || !canCompare}>
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -132,17 +139,6 @@ const Index = () => {
             )}
           </Button>
         </div>
-
-        {screenshot && (
-          <div className="mt-8">
-            <h3 className="mb-2 text-sm font-medium text-muted-foreground">Page Screenshot</h3>
-            <img
-              src={`data:image/png;base64,${screenshot}`}
-              alt="Webpage screenshot"
-              className="max-h-96 rounded-lg border border-border object-contain"
-            />
-          </div>
-        )}
 
         {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} />}
       </main>
