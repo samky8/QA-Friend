@@ -20,6 +20,7 @@ import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine2";
 import { exportToPdf, exportToCsv } from "@/lib/export-report";
 import { Loader2, FileDown, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Footer } from "@/components/Footer.tsx";
 
 const Index = () => {
   const { toast } = useToast();
@@ -234,8 +235,10 @@ const Index = () => {
 
         {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} resolvedIndices={resolvedIndices} onToggleResolve={handleToggleResolve} />}
       </main>
+      <Footer />
     </div>
   );
 };
+
 
 export default Index;
