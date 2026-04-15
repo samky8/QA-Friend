@@ -15,10 +15,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { parseDocx } from "@/lib/docx-parser";
+import { parsePdf } from "@/lib/pdf-parser";
+import { parseTxt } from "@/lib/txt-parser";
 import { scrapeWebpage, parseHtmlString } from "@/lib/scraper";
 import { compareDocuments, type ComparisonResult } from "@/lib/diff-engine2";
 import { exportToPdf, exportToCsv } from "@/lib/export-report";
-import { Loader2, FileDown, ChevronDown } from "lucide-react";
+import { Loader2, FileDown, ChevronDown, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer.tsx";
 
@@ -67,7 +69,7 @@ const Index = () => {
 
   const handleCompare = async () => {
     if (!file) {
-      toast({ title: "Missing document", description: "Please upload a .docx file.", variant: "destructive" });
+      toast({ title: "Missing document", description: "Please upload a .docx, .pdf, or .txt file.", variant: "destructive" });
       return;
     }
 
@@ -88,7 +90,12 @@ const Index = () => {
     setResult(null);
 
     try {
-      const docResult = await parseDocx(file);
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      const docResult = ext === "pdf"
+        ? await parsePdf(file)
+        : ext === "txt"
+        ? await parseTxt(file)
+        : await parseDocx(file);
 
       let webSections;
       if (useHtmlPaste) {
@@ -153,7 +160,21 @@ const Index = () => {
     }
   };
 
+  const handleReset = () => {
+    setFile(null);
+    setUrl("");
+    setPastedHtml("");
+    setUseHtmlPaste(false);
+    setAuth({ type: "none", username: "", password: "" });
+    setIgnoreHeaderFooter(false);
+    setResult(null);
+    setFilter("all");
+    setIgnoredIndices(new Set());
+    setResolvedIndices(new Set());
+  };
+
   const canCompare = file && (useHtmlPaste ? pastedHtml.trim() : url);
+  const canReset = !!(file || url || pastedHtml || result);
 
   return (
     <div className="min-h-screen bg-background">
@@ -183,7 +204,14 @@ const Index = () => {
           />
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex justify-between gap-3">
+          {canReset && (
+            <Button variant="ghost" onClick={handleReset} className="text-muted-foreground">
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Start over
+            </Button>
+          )}
+          <div className="flex gap-3 ml-auto">
           {result && (
             <div className="flex">
               <Button
@@ -233,6 +261,7 @@ const Index = () => {
               "Compare Documents"
             )}
           </Button>
+          </div>
         </div>
 
         {result && <DiffResults result={result} filter={filter} onFilterChange={setFilter} ignoredIndices={ignoredIndices} onToggleIgnore={handleToggleIgnore} resolvedIndices={resolvedIndices} onToggleResolve={handleToggleResolve} />}

@@ -96,7 +96,7 @@ const SectionRow = ({
           <div className="text-sm leading-relaxed">
             {section.status === "missing" ? (
               section.sourceText
-                ? <span className="rounded bg-diff-removed-bg px-0.5 dark:text-gray-900">{section.sourceText}</span>
+                ? <span className="rounded bg-diff-removed-highlight px-0.5 dark:text-gray-900">{section.sourceText}</span>
                 : <span className="italic text-muted-foreground">— not found in source —</span>
             ) : section.status === "hyperlinks" ? (
               <>
@@ -105,7 +105,7 @@ const SectionRow = ({
                       part.added ? null : (
                         <span
                           key={i}
-                          className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
+                          className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-highlight px-0.5 dark:text-gray-900" : ""}
                         >
                           {part.value}
                         </span>
@@ -124,7 +124,7 @@ const SectionRow = ({
                 part.added ? null : (
                   <span
                     key={i}
-                    className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 dark:text-gray-900" : ""}
+                    className={part.removed && shouldHighlight(part) ? "rounded bg-diff-changed-highlight px-0.5 dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>
@@ -139,7 +139,7 @@ const SectionRow = ({
           <div className="text-sm leading-relaxed">
             {section.status === "missing" ? (
               section.targetText
-                ? <span className="rounded bg-diff-removed-bg px-0.5 dark:text-gray-900">{section.targetText}</span>
+                ? <span className="rounded bg-diff-removed-highlight px-0.5 dark:text-gray-900">{section.targetText}</span>
                 : <span className="italic text-muted-foreground">— not found on page —</span>
             ) : section.status === "hyperlinks" ? (
               <>
@@ -148,7 +148,7 @@ const SectionRow = ({
                       part.removed ? null : (
                         <span
                           key={i}
-                          className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
+                          className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-highlight px-0.5 font-medium dark:text-gray-900" : ""}
                         >
                           {part.value}
                         </span>
@@ -167,7 +167,7 @@ const SectionRow = ({
                 part.removed ? null : (
                   <span
                     key={i}
-                    className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-bg px-0.5 font-medium dark:text-gray-900" : ""}
+                    className={part.added && shouldHighlight(part) ? "rounded bg-diff-changed-highlight px-0.5 font-medium dark:text-gray-900" : ""}
                   >
                     {part.value}
                   </span>

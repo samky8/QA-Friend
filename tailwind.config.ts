@@ -46,6 +46,8 @@ export default {
           "removed-bg": "hsl(var(--diff-removed-bg))",
           changed: "hsl(var(--diff-changed))",
           "changed-bg": "hsl(var(--diff-changed-bg))",
+          "changed-highlight": "hsl(var(--diff-changed-highlight))",
+          "removed-highlight": "hsl(var(--diff-removed-highlight))",
           hyperlinks: "hsl(var(--diff-hyperlinks))",
         },
         hyperlinks: "hsl(var(--hyperlinks))",

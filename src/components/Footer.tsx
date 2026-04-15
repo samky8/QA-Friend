@@ -6,9 +6,10 @@ import {
   ChevronUp,
   X,
   Info,
+  Mail,
 } from "lucide-react";
 
-type FooterModal = "about" | "faq" | "feedback" | null;
+type FooterModal = "about" | "faq" | "feedback" | "contact" | null;
 
 const APP_NAME = "QA Friend";
 const VERSION = "v0.1.0";
@@ -16,6 +17,10 @@ const VERSION = "v0.1.0";
 /* ---------------- FAQS (QA TOOL) ---------------- */
 
 const FAQS = [
+  {
+    q: "Is my data private?",
+    a: "Yes. Your document is processed entirely in your browser and never uploaded or stored anywhere. The only exception is when fetching a webpage that blocks direct access — in that case the URL (not your document) is routed through a third-party CORS proxy.",
+  },
   {
     q: "How does comparison work?",
     a: "The tool extracts visible text from both the Word document and webpage, then compares content intelligently so text can still match even if it has moved or been reformatted.",
@@ -180,6 +185,78 @@ function AboutModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/* ---------------- CONTACT MODAL ---------------- */
+
+function ContactModal({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSend = () => {
+    const to = atob("c2FtYnVya2U4QGxpdmUuY29t");
+    const params = new URLSearchParams({ subject, body: `From: ${email}\n\n${message}` });
+    window.location.href = `mailto:${to}?${params.toString()}`;
+    setSubmitted(true);
+  };
+
+  const isValid = email.trim() && subject.trim() && message.trim();
+
+  return (
+    <Modal title="Contact" onClose={onClose}>
+      {submitted ? (
+        <div className="py-6 text-center space-y-2">
+          <p className="text-2xl">✅</p>
+          <p className="text-foreground font-semibold">Message sent!</p>
+          <p className="text-sm text-muted-foreground">
+            We'll get back to you as soon as possible.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 block">Your Email</label>
+            <input
+              type="email"
+              className="w-full rounded-lg bg-input border border-border text-sm text-foreground px-3 py-2"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 block">Subject</label>
+            <input
+              type="text"
+              className="w-full rounded-lg bg-input border border-border text-sm text-foreground px-3 py-2"
+              placeholder="What's this about?"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-foreground mb-1 block">Message</label>
+            <textarea
+              className="w-full rounded-lg bg-input border border-border text-sm text-foreground px-3 py-2 resize-none"
+              rows={4}
+              placeholder="Your message..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
+          </div>
+          <button
+            disabled={!isValid}
+            onClick={handleSend}
+            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40"
+          >
+            Send
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 /* ---------------- FOOTER ---------------- */
 
 export function Footer() {
@@ -217,6 +294,14 @@ export function Footer() {
               <MessageSquare className="h-3.5 w-3.5" />
               Report Issue
             </button>
+
+            <button
+              onClick={() => setActiveModal("contact")}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Contact
+            </button>
           </div>
 
           {/* System info row */}
@@ -242,6 +327,10 @@ export function Footer() {
 
       {activeModal === "about" && (
         <AboutModal onClose={() => setActiveModal(null)} />
+      )}
+
+      {activeModal === "contact" && (
+        <ContactModal onClose={() => setActiveModal(null)} />
       )}
     </>
   );
