@@ -4,7 +4,7 @@ interface ScrapeOptions {
   url: string;
   ignoreHeaderFooter: boolean;
   auth?: {
-    type: "basic" | "password-gate" | "form-login";
+    type: "basic" | "form-login";
     username?: string;
     password?: string;
   };
@@ -35,6 +35,15 @@ function htmlToSections(html: string, ignoreHeaderFooter: boolean): ParsedSectio
 
   const sections: ParsedSection[] = [];
 
+  /** If the entire text of node is covered by exactly one <a> descendant, return it. */
+  function findSoloAnchor(node: Element): Element | null {
+    const text = node.textContent?.trim();
+    if (!text) return null;
+    const anchors = Array.from(node.querySelectorAll("a"));
+    if (anchors.length === 1 && anchors[0].textContent?.trim() === text) return anchors[0];
+    return null;
+  }
+
   function walk(node: Element) {
     const tag = node.tagName?.toLowerCase();
     if (!tag) return;
@@ -43,18 +52,15 @@ function htmlToSections(html: string, ignoreHeaderFooter: boolean): ParsedSectio
       const text = node.textContent?.trim();
       if (text) sections.push({ type: tag, text });
     } else if (tag === "p" || tag === "li") {
-      const children = Array.from(node.children);
       const text = node.textContent?.trim();
-      const soloLink =
-        children.length === 1 &&
-        children[0].tagName?.toLowerCase() === "a" &&
-        children[0].textContent?.trim() === text;
+      const soloAnchor = findSoloAnchor(node);
 
-      if (soloLink) {
-        // Entire <p>/<li> is a single link — emit only the link
+      if (soloAnchor) {
+        // Entire <p>/<li> is a single link (may be nested) — emit only the link
         if (text)
-          sections.push({ type: "link", text, href: children[0].getAttribute("href") || undefined });
+          sections.push({ type: "link", text, href: soloAnchor.getAttribute("href") || undefined });
       } else {
+        const children = Array.from(node.children);
         if (text)
           sections.push({ type: tag === "p" ? "paragraph" : "list-item", text });
         for (const child of children) {

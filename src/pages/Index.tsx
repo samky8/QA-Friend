@@ -132,6 +132,8 @@ const Index = () => {
     { key: "missing", label: "Missing" },
     { key: "hyperlinks", label: "Hyperlinks" },
     { key: "moved", label: "Moved" },
+    { key: "resolved", label: "Resolved" },
+    { key: "ignored", label: "Ignored" },
   ];
 
   const toggleExportStatus = (key: string, checked: boolean) => {
@@ -143,10 +145,10 @@ const Index = () => {
   const handleExport = () => {
     if (!result) return;
     if (exportFormat === "pdf") {
-      exportToPdf(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
+      exportToPdf(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses, ignoredIndices, resolvedIndices);
       toast({ title: "Report exported", description: "PDF report has been downloaded." });
     } else {
-      exportToCsv(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses);
+      exportToCsv(result, file?.name || "document.docx", url || "pasted HTML", exportStatuses, ignoredIndices, resolvedIndices);
       toast({ title: "Report exported", description: "CSV report has been downloaded." });
     }
   };

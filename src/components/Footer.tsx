@@ -160,7 +160,8 @@ function AboutModal({ onClose }: { onClose: () => void }) {
           <p>
             The system extracts visible text from both sources and performs
             intelligent matching that accounts for moved, reformatted, or
-            partially changed content.
+            partially changed content. Perfect for content audits, website quality assurance checks, 
+            and ensuring your published pages match your draft/source documents.
           </p>
         </div>
 

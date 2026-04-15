@@ -6,6 +6,8 @@ export function exportToPdf(
   sourceFile: string,
   targetUrl: string,
   includedStatuses: string[] = ["changed", "missing", "hyperlinks"],
+  ignoredIndices: Set<number> = new Set(),
+  resolvedIndices: Set<number> = new Set(),
 ) {
   const pdf = new jsPDF();
   const margin = 15;
@@ -34,8 +36,14 @@ export function exportToPdf(
 
   pdf.setFontSize(9);
 
-  for (const section of result.sections) {
-    if (!includedStatuses.includes(section.status)) continue;
+  result.sections.forEach((section, index) => {
+    const effectiveStatus = ignoredIndices.has(index)
+      ? "ignored"
+      : resolvedIndices.has(index)
+        ? "resolved"
+        : section.status;
+
+    if (!includedStatuses.includes(effectiveStatus)) return;
 
     if (y > 270) {
       pdf.addPage();
@@ -44,7 +52,7 @@ export function exportToPdf(
 
     pdf.setTextColor(0);
     pdf.setFontSize(10);
-    pdf.text(`[${section.status.toUpperCase()}] ${section.sectionLabel}`, margin, y);
+    pdf.text(`[${effectiveStatus.toUpperCase()}] ${section.sectionLabel}`, margin, y);
     y += 6;
 
     pdf.setFontSize(8);
@@ -69,7 +77,7 @@ export function exportToPdf(
       y += hrefLines.length * 4;
     }
     y += 4;
-  }
+  });
 
   pdf.save(`qa-report-${Date.now()}.pdf`);
 }
@@ -79,6 +87,8 @@ export function exportToCsv(
   sourceFile: string,
   targetUrl: string,
   includedStatuses: string[] = ["changed", "missing", "hyperlinks"],
+  ignoredIndices: Set<number> = new Set(),
+  resolvedIndices: Set<number> = new Set(),
 ) {
   const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
 
@@ -86,17 +96,23 @@ export function exportToCsv(
     ["Status", "Section", "Source Text", "Source Href", "Target Text", "Target Href"],
   ];
 
-  for (const section of result.sections) {
-    if (!includedStatuses.includes(section.status)) continue;
+  result.sections.forEach((section, index) => {
+    const effectiveStatus = ignoredIndices.has(index)
+      ? "ignored"
+      : resolvedIndices.has(index)
+        ? "resolved"
+        : section.status;
+
+    if (!includedStatuses.includes(effectiveStatus)) return;
     rows.push([
-      section.status,
+      effectiveStatus,
       section.sectionLabel ?? "",
       section.sourceText ?? "",
       section.sourceHref ?? "",
       section.targetText ?? "",
       section.targetHref ?? "",
     ]);
-  }
+  });
 
   const csv = [
     `# QA Content Verification Report`,
